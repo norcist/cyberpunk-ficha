@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<!--
+  ==========================================================================
+  FICHA CYBERPUNK RED  —  index.html
+  --------------------------------------------------------------------------
+  ARQUIVOS DO PROJETO (precisam ficar juntos, nesta estrutura):
+      index.html        <- este arquivo: estrutura (HTML) + lógica (JavaScript)
+      style.css         <- TODO o visual (cores, fontes, layout)
+      assets/bg.jpg     <- imagem de fundo do site
+      assets/corpo.jpg  <- imagem do corpo usada na aba Cyberware
+
+  COMO FUNCIONA (resumo para quem vai mexer):
+    * A página quase não tem HTML escrito à mão. O JavaScript monta as abas
+      como texto (template strings) e joga dentro de <main id="main">.
+    * Cada aba é uma entrada do objeto P  (P.ficha, P.pericias, P.lifepath...).
+    * Todo campo tem um id. Tudo que tem id (input/select/textarea) é salvo
+      sozinho no navegador (localStorage) e entra no backup JSON.
+      => Para criar um campo novo que seja salvo, basta dar um id a ele.
+    * Para criar uma ABA nova: crie P.minhaAba = SEC(...) e adicione
+      ["minhaAba","Nome"] na lista TABS (mais abaixo).
+    * Para mexer em cores, fontes, tamanhos: edite o style.css, seção 1.
+  ==========================================================================
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover deixa a página ocupar a tela toda em celulares com notch -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ficha Cyberpunk RED</title>
+
+<!-- Fontes: Chakra Petch (interface) e Share Tech Mono (números).
+     Se estiver offline, o navegador usa as fontes reserva definidas no style.css. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+<!-- Todo o visual vive aqui -->
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Camada de fundo (imagem + escurecimento). Estilizada em style.css, seção 2. -->
+<div class="bg" aria-hidden="true"></div>
+
+<header>
+  <h1>Cyberpunk <b>RED</b> // Ficha</h1>
+  <!-- Botões do topo. Os cliques são ligados no final do script. -->
+  <div class="bar">
+    <button class="alt" id="bIO">Backup</button>
+    <button class="alt" onclick="print()">Imprimir</button>
+    <button id="bReset">Limpar</button>
+  </div>
+</header>
+
+<!-- Barra de abas: preenchida pelo JavaScript a partir da lista TABS -->
+<nav id="tabs"></nav>
+
+<!-- Painel de backup (escondido até clicar em BACKUP) -->
+<div id="io" hidden>
+  <section>
+    <div class="hd"><h2>Backup (JSON)</h2></div>
+    <textarea id="json" spellcheck="false" placeholder="Clique em Gerar e copie o texto para guardar, ou cole um backup aqui e clique em Importar."></textarea>
+    <div class="bar" style="margin-top:8px"><button id="bExp">Gerar</button><button id="bImp">Importar</button></div>
+    <p class="note">A ficha é salva sozinha neste navegador. Use o backup para levar a ficha a outro aparelho.</p>
+  </section>
+</div>
+
+<!-- As abas são injetadas aqui -->
+<main id="main"></main>
+
+<script>
+/* ==========================================================================
+   1. ATALHOS E "FÁBRICAS" DE HTML
+   Funções pequenas que devolvem pedaços de HTML. As abas são montadas com elas.
+   ========================================================================== */
+
+// $("id") = document.getElementById("id")
+const $ = id => document.getElementById(id);
+
+// F = campo de texto simples com legenda.  F("nome","Handle")
+//     o 3º parâmetro "t" são atributos extras do <input> (ex.: NUM, min, max)
+const F = (id, l, t = "") => `<div><label for="${id}">${l}</label><input id="${id}" ${t}></div>`;
+
+// T = caixa de texto grande (textarea).  T(id, legenda, altura em px, colunas que ocupa)
+const T = (id, l, h = 80, s = 1) => `<div style="grid-column:span ${s}"><label for="${id}">${l}</label><textarea id="${id}" style="min-height:${h}px"></textarea></div>`;
+
+// PM = par de botões − / + que remove/adiciona linhas de uma lista (k = nome da lista)
+const PM = k => `<div class="pm"><button class="alt" data-l="${k}" data-d="-1" title="Remover última linha">−</button><button data-l="${k}" data-d="1" title="Adicionar linha">+</button></div>`;
+
+// SEC = painel completo (<section>) com título.
+//   t = título | b = corpo (HTML) | x = HTML extra à direita do título | c = classes (ex.: "wide")
+const SEC = (t, b, x = "", c = "") => `<section class="${c}"><div class="hd"><h2>${t}</h2>${x}</div>${b}</section>`;
+
+// lst = tabela vazia que o renderList() preenche depois
+const lst = k => `<div class="tw"><table id="${k}"></table></div>`;
+
+// atributo para inputs numéricos
+const NUM = 'type="number"';
+
+// box = caixinha de valor (legenda pequena em cima, valor embaixo)
+const box = (l, v) => `<div class="box"><small>${l}</small>${v}</div>`;
+
+
+/* ==========================================================================
+   2. DADOS DA FICHA (regras do jogo)
+   Quer corrigir um nome, adicionar perícia ou outra região? É aqui.
+   ========================================================================== */
+
+// Atributos: [sigla, nome]
+const ST = [["INT","Inteligência"],["REF","Reflexos"],["DEX","Destreza"],["TECH","Técnica"],["COOL","Frieza"],["WILL","Vontade"],["LUCK","Sorte"],["MOVE","Movimento"],["BODY","Corpo"],["EMP","Empatia"]];
+
+// Funções (Role) e a habilidade especial de cada uma
+const ROLES = {"Rockerboy":"Impacto Carismático","Solo":"Consciência de Combate","Netrunner":"Interface","Tech":"Fabricante","Medtech":"Medicina","Media":"Credibilidade","Exec":"Trabalho em Equipe","Lawman":"Apoio","Fixer":"Operador","Nomad":"Moto"};
+
+// Colunas de cada lista (tabelas). Formato: [id curto, título da coluna, 1 = campo numérico]
+//   "cy" vale para TODAS as listas de cyberware (cy0, cy1, ...)
+const LISTS = {
+  weap: [["n","Arma"],["d","Dano"],["m","Munição"],["r","CdT"],["o","Notas"]],
+  inv:  [["n","Item"],["q","Qtd",1],["o","Notas"]],
+  deck: [["n","Programa / Hardware"],["a","ATK",1],["d","DEF",1],["r","REZ",1],["c","Classe"]],
+  cy:   [["n","Implante"],["h","Perda",1]]   // "h" = perda de Humanidade (soma na barra de Humanidade)
+};
+
+// Regiões de cyberware. O número da posição (0..11) é usado como id: cy0, cy1...
+const CG = ["Cyberolho (D)","Cyberolho (E)","Neural Link","Suíte de Cyberáudio","Cyberbraço / mão (D)","Cyberbraço / mão (E)","Interno","Cyberperna / pé (D)","Cyberperna / pé (E)","Externo","Fashionware","Borgware"];
+
+// CNT = quantas linhas cada lista tem agora (o usuário muda com os botões − / +)
+const CNT = {weap:3, inv:6, deck:6};
+CG.forEach((_, i) => CNT["cy" + i] = 2);
+
+// Devolve as colunas de uma lista (todas as "cyN" usam as colunas de "cy")
+const LK = k => LISTS[k.startsWith("cy") ? "cy" : k];
+
+// Perícias. Marcas no nome:
+//   ★ (asterisco *) = perícia básica   + = custa o dobro   @ = título de grupo   ~ = linha com nome editável
+//   formato: "Nome:ATRIBUTO"
+const SK = [
+ ["Percepção",["Concentração:WILL*","Ocultar/Revelar Objeto:INT","Leitura Labial:INT","Percepção:INT*","Rastreamento:INT"]],
+ ["Corpo",["Atletismo:DEX*","Contorcionismo:DEX","Dança:DEX","Resistência:WILL","Resistir a Tortura/Drogas:WILL","Furtividade:DEX*"]],
+ ["Controle",["Dirigir Veículo Terrestre:REF","Pilotar Veículo Aéreo:REF+","Pilotar Veículo Marítimo:REF","Montaria:REF"]],
+ ["Educação",["Contabilidade:INT","Trato com Animais:INT","Burocracia:INT","Negócios:INT","Composição:INT","Criminologia:INT","Criptografia:INT","Dedução:INT","Educação:INT*","Jogatina:INT","Pesquisa em Biblioteca:INT","Tática:INT","Sobrevivência:INT","@Idioma","~Gíria de rua:INT*","~:INT","~:INT","@Especialista Local","~Sua região:INT*","~:INT","~:INT","@Ciência","~:INT","~:INT"]],
+ ["Combate",["Briga:DEX*","Evasão:DEX*","Arma Branca:DEX","@Artes Marciais ×2","~:DEX","~:DEX"]],
+ ["Atuação",["Atuação:COOL","@Tocar Instrumento","~:TECH","~:TECH"]],
+ ["Armas à Distância",["Arquearia:REF","Fogo Automático:REF+","Pistola:REF","Armas Pesadas:REF+","Fuzil/Espingarda:REF"]],
+ ["Social",["Suborno:COOL","Conversação:EMP*","Percepção Humana:EMP*","Interrogatório:COOL","Persuasão:COOL*","Aparência Pessoal:COOL","Vida Urbana:COOL","Comércio:COOL","Moda e Estilo:COOL"]],
+ ["Técnica",["Tecnologia Aérea:TECH","Tecnologia Básica:TECH","Cibertecnologia:TECH","Demolições:TECH+","Eletrônica/Segurança:TECH+","Primeiros Socorros:TECH*","Falsificação:TECH","Tecnologia Terrestre:TECH","Pintura/Desenho/Escultura:TECH","Paramédico:TECH+","Fotografia/Filme:TECH","Arrombar Fechaduras:TECH","Furtar:TECH","Tecnologia Marítima:TECH","Tecnologia de Armas:TECH"]]
+];
+
+// Campos do Lifepath: [id, legenda, colunas que ocupa (opcional)]
+const LP = [["lp_origem","Origens Culturais"],["lp_pers","Personalidade",2],["lp_roupa","Roupas e Cabelo",2],["lp_valor","O que mais valoriza"],["lp_sent","Sentimentos sobre as Pessoas"],["lp_pessoa","Pessoa mais valorizada"],["lp_posse","Posse mais valorizada"],["lp_fam","Origem Familiar"],["lp_inf","Ambiente da Infância"],["lp_crise","Crise Familiar"],["lp_meta","Objetivos de Vida"],["lp_amor","Casos de Amor Trágicos",2]];
+
+// Campos de "Companheiros e Carreira"
+const KC = [["kc_amigos","Amigos"],["kc_inim","Inimigos"],["kc_porque","Por quê?"],["kc_role","Lifepath da Função",2],["kc_lancar","O que podem lançar contra você?"],["kc_rep","Reputação e Eventos"],["kc_imp","Aprimoramento"]];
+
+// Gera a grade de caixas de texto do Lifepath
+const lpHtml = a => `<div class="lp">${a.map(([id, l, s]) => T(id, l, 70, s || 1)).join("")}</div>`;
+
+
+/* ==========================================================================
+   3. LINHAS DE PERÍCIA
+   Cada perícia vira uma linha: nome | nível | mod | atributo | base.
+   ========================================================================== */
+let n = 0;   // contador: dá um id único (lv0, md0, lv1...) a cada perícia
+
+// Dois campos numéricos: nível (lvN) e modificador (mdN)
+const lvmd = (i, v) => `<input id="lv${i}" ${NUM} min="0" max="10" value="${v}"><input id="md${i}" ${NUM} value="0">`;
+
+// Transforma um texto de SK ("Pistola:REF", "@Idioma", "~:INT") numa linha HTML
+const row = s => {
+  if (s[0] === "@") return `<div class="gh">${s.slice(1)}</div>`;   // @ = só um subtítulo
+  const ed = s[0] === "~"; if (ed) s = s.slice(1);                     // ~ = nome editável
+  const [nm, r] = s.split(":"), a = r.replace(/[*+]/g, ""), st = r.includes("*"), x2 = r.includes("+"), i = n++;
+  const name = ed ? `<input id="nm${i}" value="${nm}" placeholder="nome…">` : `${nm}${x2 ? " <small>×2</small>" : ""}`;
+  // perícias básicas (★) começam no nível 2
+  return `<div class="sk" data-a="${a}"><div class="nm">${st ? "★ " : ""}${name}</div>${lvmd(i, st ? 2 : 0)}<b>${a}</b><output>0</output></div>`;
+};
+
+const SEL = "INT REF DEX TECH COOL WILL EMP BODY".split(" ");
+
+// Linha de perícia PERSONALIZADA (o jogador escolhe o nome e o atributo)
+const crow = () => { const i = n++; return `<div class="sk" data-a=""><div class="nm"><input id="nm${i}" placeholder="Perícia personalizada"></div>${lvmd(i, 0)}<select id="st${i}">${SEL.map(s => `<option>${s}</option>`).join("")}</select><output>0</output></div>`; };
+
+// Cabeçalho das colunas de perícia
+const SH = `<div class="sk sh"><span></span><i>NÍV</i><i>MOD</i><i>ATR</i><i>BASE</i></div>`;
+
+
+/* ==========================================================================
+   4. AS ABAS
+   Cada P.xxx é o HTML de uma aba. Painéis "wide" ocupam a linha inteira.
+   ========================================================================== */
+const P = {};
+
+// ---------- ABA: FICHA ----------
+// 1) Vitalidade (barra de PV)  2) Atributos  3) Ferimentos + Armadura  4) Armas
+P.ficha = SEC("Vitalidade", `
+  <div class="vital-top">
+    <!-- número grande: PV atuais / máximos -->
+    <div class="vital-num"><span id="hpNow">0</span><small>/ <span id="hpMax2">0</span> PV</small></div>
+    <!-- etiqueta de estado (Saudável, Ferido...). Texto e cor são definidos no calc() -->
+    <span class="state ok" id="state">—</span>
+  </div>
+  <!-- A BARRA DE VIDA. Visual: style.css, seção 7. Valores: função calc() mais abaixo. -->
+  <div class="vbar" id="hpBar" data-s="ok">
+    <i class="vbar-fill" id="hpFill"></i>
+    <i class="vbar-seg"></i>
+    <i class="vbar-mark" id="hpMark"></i>
+  </div>
+  <div class="vbar-scale">
+    <span class="s0">0</span>
+    <span class="stag" id="hpTag">Ferida grave</span>
+    <span class="smx" id="hpMaxLbl">0</span>
+  </div>
+  <!-- Botões de ajuste rápido: o clique é tratado no "ouvinte de cliques" (data-hp) -->
+  <div class="vital-btns"><span>Ajuste rápido</span>${[-5, -1, 1, 5].map(d => `<button class="alt" data-hp="${d}">${d > 0 ? "+" : "−"}${Math.abs(d)}</button>`).join("")}<button class="alt" data-hp="full">Cura total</button></div>`,
+  "", "wide")
+
++ SEC("Atributos", `
+  <div class="stats">${ST.map(([k, t]) => `<div class="stat"><b>${k}</b><input id="s_${k}" ${NUM} min="1" max="${k === "MOVE" ? 10 : 8}" value="5"><span>${t}</span></div>`).join("")}</div>
+  <!-- Valores derivados. Os <em> são calculados no calc(); PV ATUAIS e SORTE são editáveis. -->
+  <div class="der">
+    ${box("PV MÁXIMOS", '<em id="hpMax">0</em>')}
+    ${box("PV ATUAIS", `<input id="hp" ${NUM}>`)}
+    ${box("FERIDA GRAVE (abaixo de)", '<em id="hurt">0</em>')}
+    ${box("TESTE DE MORTE", '<em id="death">0</em>')}
+    ${box("HUMANIDADE (atual / máx)", '<em id="hum">0</em>')}
+    ${box("SORTE", `<input id="luck" ${NUM} value="0">`)}
+  </div>`, "", "wide")
+
+// Faixa com dois painéis lado a lado (.row2)
++ `<div class="row2">`
+  + SEC("Ferimentos e Vícios", `<div class="g">${T("crit", "Ferimentos críticos", 90)}${T("addic", "Vícios", 90)}</div>`)
+  + SEC("Armadura (PA)", `<div class="tw"><table class="arm"><tr><th></th><th>Nome / Tipo</th><th>PA</th><th>Máx</th><th>Penal.</th></tr>${[["ah", "Cabeça"], ["ab", "Corpo"], ["as", "Escudo"]].map(([r, t]) => `<tr><td>${t}</td><td><input id="${r}_n" placeholder="ex.: Kevlar leve"></td>${["c", "m", "p"].map(c => `<td class="q"><input id="${r}_${c}" ${NUM}></td>`).join("")}</tr>`).join("")}</table></div><p class="note">PA = pontos de armadura atuais · Máx = valor original · Penal. = redução em REF/DEX/MOVE. A armadura perde 1 de PA a cada ataque que a penetra.</p>`)
++ `</div>`
+
++ SEC("Armas", lst("weap"), PM("weap"), "wide");
+
+
+// ---------- ABA: PERÍCIAS ----------
+P.pericias = SEC("Perícias", `<p class="note">★ básica (nível inicial 2) · ×2 custa o dobro de IP · BASE = atributo + nível + mod.</p><div class="skills">${SK.map(([c, l]) => `<div class="cat"><h3>${c}</h3>${SH}${l.map(row).join("")}</div>`).join("")}<div class="cat"><h3>Personalizadas</h3>${SH}${Array.from({length: 8}, crow).join("")}</div></div>`, "", "wide");
+
+
+// ---------- ABA: LIFEPATH ----------
+// A "Identidade" (handle, aliases, função) fica no topo desta aba.
+// Atenção: os ids (nome, alias, role, rank) são lidos pelo calc() e pelo backup — não mude.
+P.lifepath = SEC("Identidade", `
+  <div class="g g2">
+    ${F("nome", "Handle")}
+    ${F("alias", "Apelidos / Aliases")}
+    <div><label for="role">Função (Role)</label><select id="role">${Object.keys(ROLES).map(r => `<option>${r}</option>`).join("")}</select></div>
+    ${F("rank", "Habilidade de função (#)", NUM + ' min="1" max="10" value="4"')}
+  </div>
+  <p class="note" id="roleAb"></p>`, "", "wide")
++ SEC("Lifepath", lpHtml(LP), "", "wide")
++ SEC("Companheiros e Carreira", lpHtml(KC), "", "wide");
+
+
+// ---------- ABA: CYBERWARE ----------
+// Imagem do corpo (arquivo na pasta assets/)
+const BODY_IMG = "assets/corpo.jpg";
+
+// BP = pontos do corpo onde as regiões se ligam por linhas.
+//   formato: [índice em CG, lado do cartão ("L"/"R"), posição x%, posição y% na imagem]
+//   a ordem aqui define o número mostrado na bolinha (1, 2, 3...)
+const BP = [[2,"L",50,3.5],[0,"L",46,8.6],[4,"L",24,32],[7,"L",38,63],[3,"R",59,11],[1,"R",54,8.6],[5,"R",75,33],[8,"R",62,63]];
+
+// Nomes curtos para os títulos dos cartões
+const CGS = {0:"Cyberolho (D)",1:"Cyberolho (E)",2:"Neural Link",3:"Cyberáudio",4:"Cyberbraço (D)",5:"Cyberbraço (E)",7:"Cyberperna (D)",8:"Cyberperna (E)"};
+
+// Um cartão de região (título + −/+ + lista de implantes)
+const cyCard = (i, n) => { const k = "cy" + i; return `<section class="cyc" data-k="${k}"><div class="hd"><h2><b class="n">${n}</b>${CGS[i]}</h2><span class="hr"><span class="sub" id="sub_${k}"></span>${PM(k)}</span></div>${lst(k)}</section>`; };
+
+// Uma coluna de cartões (esquerda "L" ou direita "R")
+const cyCol = s => `<div class="cycol ${s}">${BP.map((p, n) => p[1] === s ? cyCard(p[0], n + 1) : "").join("")}</div>`;
+
+P.cyber = SEC("Humanidade", `
+  <div class="der" style="margin:0">${box("HUMANIDADE MÁX", '<em id="hmax">0</em>')}${box("PERDA TOTAL", '<em id="loss">0</em>')}${box("HUMANIDADE ATUAL", '<em id="hcur">0</em>')}${box("EMP EFETIVA", '<em id="empEf">0</em>')}</div>
+  <!-- BARRA DE HUMANIDADE: mesmo componente .vbar da barra de PV. Cada gomo = 1 ponto de EMP (10 de Humanidade). -->
+  <div class="vbar hum" id="hBar" data-s="ok"><i class="vbar-fill" id="hbar"></i><i class="vbar-seg"></i></div>
+  <p id="hState" class="ok"></p>
+  <p class="note">EMP efetiva = Humanidade atual ÷ 10 (arredondada para baixo). Use + e − para criar mais linhas em cada região. Pontos acesos no corpo = região com implantes.</p>`, "", "wide")
+
+// O "palco": cartões à esquerda | corpo com bolinhas | cartões à direita
++ `<div class="stage" id="cyStage"><span class="tag">// ANATOMIA CIBERNÉTICA</span><svg id="cyLines" xmlns="http://www.w3.org/2000/svg"></svg>${cyCol("L")}<div class="fig"><img src="${BODY_IMG}" alt="Corpo humano translúcido" draggable="false">${BP.map((p, n) => `<i class="dot" data-k="cy${p[0]}" style="left:${p[2]}%;top:${p[3]}%" title="${CG[p[0]]}">${n + 1}</i>`).join("")}</div>${cyCol("R")}</div>`
+
+// Regiões sem lugar no desenho do corpo (Interno, Externo, Fashionware, Borgware)
++ `<div class="cyb">${[6, 9, 10, 11].map(i => SEC(CG[i], lst("cy" + i), `<span class="hr"><span class="sub" id="sub_cy${i}"></span>${PM("cy" + i)}</span>`)).join("")}</div>`;
+
+
+// ---------- ABA: CYBERDECK ----------
+P.deck = SEC("Cyberdeck", `<div class="g g4">${F("dk_n", "Modelo")}${F("dk_p", "Slots de programa", NUM)}${F("dk_h", "Slots de hardware", NUM)}${F("dk_u", "Slots universais", NUM)}</div>`, "", "wide")
++ SEC("Programas / Hardware", lst("deck"), PM("deck"), "wide");
+
+
+// ---------- ABA: INVENTÁRIO ----------
+P.inv = SEC("Meus Pertences", `<div class="g g4">${F("casa", "Moradia")}${F("aluguel", "Aluguel")}${F("estilo", "Estilo de vida")}${F("eb", "Eurodólares (eb)", NUM)}${F("ip", "Pontos de Aprimoramento (IP)", NUM)}${F("rep", "Reputação", NUM)}</div><div style="margin-top:10px">${T("moda", "Moda", 60)}</div>`, "", "wide")
++ SEC("Inventário", lst("inv"), PM("inv"), "wide");
+
+
+/* ==========================================================================
+   5. MONTAGEM DAS ABAS E NAVEGAÇÃO
+   ========================================================================== */
+
+// Lista de abas, na ordem em que aparecem: [chave em P, texto do botão]
+const TABS = [["ficha","Ficha"],["pericias","Perícias"],["lifepath","Lifepath"],["cyber","Cyberware"],["deck","Cyberdeck"],["inv","Inventário"]];
+
+// Cria os botões da barra de abas e os contêineres de cada aba
+$("tabs").innerHTML = TABS.map(([k, t]) => `<button data-t="${k}">${t}</button>`).join("");
+$("main").innerHTML = TABS.map(([k]) => `<div class="tab" id="tab_${k}">${P[k]}</div>`).join("");
+
+let TAB = "ficha";   // aba aberta no momento
+
+// Mostra uma aba e esconde as outras (classe "on" — veja .tab.on no CSS)
+function show(t) {
+  TAB = t;
+  TABS.forEach(([k]) => {
+    $("tab_" + k).classList.toggle("on", k === t);
+    document.querySelector(`[data-t="${k}"]`).classList.toggle("on", k === t);
+  });
+  // As linhas do Cyberware só podem ser desenhadas com a aba visível (precisam das medidas na tela)
+  if (t === "cyber") requestAnimationFrame(drawLines);
+}
+
+
+/* ==========================================================================
+   6. LISTAS COM LINHAS (armas, inventário, cyberdeck, implantes)
+   ========================================================================== */
+
+// (Re)desenha a tabela da lista "k" com CNT[k] linhas, preservando o que já foi digitado.
+function renderList(k) {
+  const L = LK(k), keep = {};
+  // 1) guarda o que está escrito nos campos atuais
+  document.querySelectorAll("#" + k + " input").forEach(e => keep[e.id] = e.value);
+  // 2) monta cabeçalho + linhas novas
+  let h = "<tr>" + L.map(c => `<th>${c[1]}</th>`).join("") + "</tr>";
+  for (let i = 0; i < CNT[k]; i++) h += "<tr>" + L.map(c => `<td${c[2] ? ' class="q"' : ""}><input id="${k}_${i}_${c[0]}"${c[2] ? ' type="number" min="0"' : ""}${c[0] === "h" ? ' class="hl"' : ""}></td>`).join("") + "</tr>";
+  $(k).innerHTML = h;
+  // 3) devolve os valores guardados
+  for (const id in keep) { const e = $(id); if (e) e.value = keep[id]; }
+  requestAnimationFrame(drawLines);
+}
+Object.keys(CNT).forEach(renderList);
+
+
+/* ==========================================================================
+   7. CÁLCULOS  —  função calc()
+   Roda a cada alteração em qualquer campo. Atualiza: PV, barras, Humanidade,
+   perícias e destaque das regiões de cyberware.
+   ========================================================================== */
+const val = id => +$(id).value || 0;   // lê um campo como número (vazio vira 0)
+
+function calc() {
+  // --- Valores base vindos dos atributos ---
+  const body = val("s_BODY"), will = val("s_WILL"), emp = val("s_EMP");
+
+  // Regras: PV = 10 + 5 × ((CORPO + VONTADE) ÷ 2, arredondado para cima)
+  //         Ferida Grave = metade dos PV, arredondada para cima
+  const hp = 10 + 5 * Math.ceil((body + will) / 2), hurt = Math.ceil(hp / 2);
+
+  // --- Humanidade: soma de todas as "Perdas" digitadas nos implantes (campos .hl) ---
+  let loss = 0; document.querySelectorAll(".hl").forEach(e => loss += +e.value || 0);
+  const hmax = emp * 10, hcur = Math.max(0, hmax - loss);
+
+  // --- Números das caixinhas ---
+  $("hpMax").textContent = hp; $("hurt").textContent = hurt; $("death").textContent = body;
+  $("hum").textContent = hcur + " / " + hmax;
+  $("hmax").textContent = hmax; $("loss").textContent = loss; $("hcur").textContent = hcur; $("empEf").textContent = Math.floor(hcur / 10);
+
+  // --- PV atuais. Campo vazio = ainda não preenchido = considera vida cheia ---
+  const cur = $("hp").value === "" ? hp : val("hp");
+
+  // --- Estado do personagem ---
+  //   t = texto | c = cor da etiqueta (ok / hurt / dead) | bs = estado da barra (ok / hurt / grave / dead)
+  let t = "Saudável", c = "ok", bs = "ok";
+  if (cur <= 0)        { t = "Mortalmente ferido (teste de morte)";        c = "dead"; bs = "dead"; }
+  else if (cur < hurt) { t = "Gravemente ferido (−2 em todas as ações)";   c = "dead"; bs = "grave"; }
+  else if (cur < hp)   { t = "Ferido";                                     c = "hurt"; bs = "hurt"; }
+  $("state").textContent = t; $("state").className = "state " + c;
+
+  // --- BARRA DE PV ---
+  $("hpNow").textContent = cur; $("hpMax2").textContent = hp; $("hpMaxLbl").textContent = hp;
+  $("hpFill").style.width = Math.max(0, Math.min(100, cur / hp * 100)) + "%";   // largura do preenchimento
+  $("hpBar").style.setProperty("--n", hp);                                       // nº de gomos = PV máximos
+  $("hpBar").dataset.s = bs;                                                     // cor (ver CSS, seção 7)
+  const mk = hurt / hp * 100;                                                    // posição do risco "Ferida grave"
+  $("hpMark").style.left = mk + "%"; $("hpTag").style.left = mk + "%";
+
+  // --- PERÍCIAS: BASE = atributo + nível + modificador ---
+  document.querySelectorAll(".sk:not(.sh)").forEach(r => {
+    const x = r.querySelectorAll("input[type=number]"), s = r.querySelector("select"), a = s ? s.value : r.dataset.a;
+    r.querySelector("output").textContent = val("s_" + a) + (+x[0].value || 0) + (+x[1].value || 0);
+  });
+
+  // --- BARRA DE HUMANIDADE (aba Cyberware) ---
+  $("hbar").style.width = (hmax ? hcur / hmax * 100 : 0) + "%";
+  $("hBar").style.setProperty("--n", Math.max(1, emp));   // 1 gomo por ponto de EMP
+  const hs = $("hState");
+  if (hcur <= 0) { hs.textContent = "⚠ HUMANIDADE 0 — CIBERPSICOSE"; hs.className = "dead"; $("hBar").dataset.s = "dead"; }
+  else if (Math.floor(hcur / 10) < emp) { hs.textContent = "EMP reduzida em " + (emp - Math.floor(hcur / 10)) + " por perda de Humanidade"; hs.className = "hurt"; $("hBar").dataset.s = "hurt"; }
+  else { hs.textContent = "Humanidade intacta"; hs.className = "ok"; $("hBar").dataset.s = "ok"; }
+
+  // --- CYBERWARE: mostra a perda de cada região e acende cartão + bolinha se houver implante ---
+  CG.forEach((_, i) => {
+    const k = "cy" + i; let s = 0, used = false;
+    document.querySelectorAll("#" + k + " input").forEach(e => { if (e.value !== "") used = true; if (e.classList.contains("hl")) s += +e.value || 0; });
+    const sb = $("sub_" + k); if (sb) sb.textContent = s ? "−" + s : "";
+    document.querySelectorAll(`[data-k="${k}"]`).forEach(e => e.classList.toggle("on", used));
+  });
+  drawLines();
+
+  // --- Texto da habilidade de função (aba Lifepath > Identidade) ---
+  $("roleAb").textContent = "Habilidade de função: " + ROLES[$("role").value] + " (rank " + val("rank") + ")";
+}
+
+
+/* ==========================================================================
+   8. SALVAR, CARREGAR E BACKUP
+   Tudo que tem id (input/select/textarea) vai para o localStorage do navegador.
+   ========================================================================== */
+const KEY = "cpr_ficha_v2";   // nome da gaveta no localStorage. Se mudar, as fichas antigas "somem".
+
+// dump(): junta TODOS os campos num objeto {id: valor}. Também guarda nº de linhas e aba atual.
+const dump = () => {
+  const d = {};
+  document.querySelectorAll("input[id],select[id],textarea[id]").forEach(e => { if (e.id !== "json") d[e.id] = e.value; });
+  d.__n = CNT; d.__t = TAB;
+  return d;
+};
+
+function save() { try { localStorage.setItem(KEY, JSON.stringify(dump())); } catch (e) {} }
+
+// load(): faz o caminho contrário de dump()
+function load(d) {
+  // primeiro restaura o nº de linhas das listas (limite 0–40) e as redesenha
+  if (d.__n) { for (const k in CNT) if (Number.isInteger(d.__n[k])) CNT[k] = Math.max(0, Math.min(40, d.__n[k])); Object.keys(CNT).forEach(renderList); }
+  // depois preenche cada campo pelo id
+  for (const k in d) { const e = $(k); if (e && k !== "json" && typeof d[k] === "string") e.value = d[k]; }
+  // reabre a última aba (se ela ainda existir)
+  if (typeof d.__t === "string" && $("tab_" + d.__t)) show(d.__t);
+}
+
+// --- Inicialização ---
+show("ficha");
+try { const raw = localStorage.getItem(KEY) || localStorage.getItem("cpr_ficha_v1"); if (raw) load(JSON.parse(raw)); } catch (e) {}
+// Primeira visita: o campo PV ATUAIS está vazio -> começa com vida cheia.
+// (Só testa "vazio": assim um 0 salvo de propósito NÃO volta para vida cheia ao recarregar.)
+calc();
+if ($("hp").value === "") { $("hp").value = $("hpMax").textContent; calc(); }
+
+// Qualquer digitação recalcula e salva
+document.addEventListener("input", () => { calc(); save(); });
+
+
+/* ==========================================================================
+   9. CLIQUES
+   Um único "ouvinte" para todos os botões gerados pelo JavaScript.
+   Cada botão diz o que faz pelos atributos data-*:
+     data-t   = trocar de aba           (data-t="cyber")
+     data-hp  = ajustar PV              (data-hp="-5", "1", "full")
+     data-l / data-d = adicionar (+1) ou remover (-1) linha de lista
+   ========================================================================== */
+document.addEventListener("click", ev => {
+  // --- Trocar de aba ---
+  const t = ev.target.closest("button[data-t]");
+  if (t) { show(t.dataset.t); save(); scrollTo(0, 0); return; }
+
+  // --- Ajuste rápido de PV (botões da barra de vida) ---
+  const q = ev.target.closest("button[data-hp]");
+  if (q) {
+    const max = +$("hpMax").textContent, cur = $("hp").value === "" ? max : val("hp");
+    // "full" = cura total; senão soma o valor, sempre entre 0 e o máximo
+    $("hp").value = q.dataset.hp === "full" ? max : Math.max(0, Math.min(max, cur + (+q.dataset.hp)));
+    calc(); save(); return;
+  }
+
+  // --- Adicionar/remover linha de uma lista ---
+  const b = ev.target.closest("button[data-l]"); if (!b) return;
+  const k = b.dataset.l, d = +b.dataset.d, L = LK(k);
+  if (d < 0 && CNT[k] > 0) {
+    // antes de apagar a última linha, confirma se ela tiver algo escrito
+    const last = CNT[k] - 1;
+    if (L.some(c => $(`${k}_${last}_${c[0]}`).value !== "") && !confirm("Remover a última linha? Os dados dela serão apagados.")) return;
+  }
+  CNT[k] = Math.max(0, Math.min(40, CNT[k] + d));   // limite de 0 a 40 linhas
+  renderList(k); calc(); save();
+});
+
+
+/* ==========================================================================
+   10. LINHAS DE CONEXÃO DO CYBERWARE
+   Desenha, em SVG, uma linha ligando cada cartão à sua bolinha no corpo.
+   Linha sólida = região com implante; tracejada = vazia (estilo em style.css, seção 11).
+   Precisa recalcular quando a tela muda de tamanho.
+   ========================================================================== */
+function drawLines() {
+  const st = $("cyStage"), svg = $("cyLines");
+  if (!st || !svg) return;
+  // aba escondida ou tela estreita (SVG oculto pelo CSS): não desenha nada
+  if (!st.offsetParent || getComputedStyle(svg).display === "none") { svg.innerHTML = ""; return; }
+  const sr = st.getBoundingClientRect();
+  svg.setAttribute("viewBox", `0 0 ${sr.width} ${sr.height}`);
+  let h = "";
+  BP.forEach(([i, side]) => {
+    const k = "cy" + i, c = st.querySelector(`.cyc[data-k="${k}"]`), d = st.querySelector(`.dot[data-k="${k}"]`);
+    if (!c || !d) return;
+    const cr = c.getBoundingClientRect(), dr = d.getBoundingClientRect();
+    // ponto de saída: lado do cartão voltado para o corpo, na altura do meio
+    const x1 = (side === "L" ? cr.right : cr.left) - sr.left, y1 = cr.top + cr.height / 2 - sr.top;
+    // ponto de chegada: centro da bolinha
+    const xd = dr.left + dr.width / 2 - sr.left, yd = dr.top + dr.height / 2 - sr.top;
+    const xm = x1 + (side === "L" ? 16 : -16);   // pequeno trecho reto antes de a linha "dobrar"
+    h += `<polyline class="ln ${c.classList.contains("on") ? "on" : ""}" points="${x1},${y1} ${xm},${y1} ${xd},${yd}"/><circle cx="${x1}" cy="${y1}" r="3"/>`;
+  });
+  svg.innerHTML = h;
+}
+if (window.ResizeObserver && $("cyStage")) new ResizeObserver(drawLines).observe($("cyStage"));
+addEventListener("resize", drawLines);
+
+
+/* ==========================================================================
+   11. BOTÕES DO TOPO (Backup e Limpar)
+   ========================================================================== */
+$("bIO").onclick  = () => { $("io").hidden = !$("io").hidden; };                       // mostra/esconde painel de backup
+$("bExp").onclick = () => { $("json").value = JSON.stringify(dump()); $("json").select(); };   // gera o texto do backup
+$("bImp").onclick = () => { try { load(JSON.parse($("json").value)); calc(); save(); } catch (e) { alert("JSON inválido."); } };   // restaura um backup
+$("bReset").onclick = () => {
+  if (confirm("Apagar toda a ficha?")) { try { localStorage.removeItem(KEY); localStorage.removeItem("cpr_ficha_v1"); } catch (e) {} location.reload(); }
+};
+</script>
+</body>
+</html>

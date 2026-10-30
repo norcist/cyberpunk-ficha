@@ -1,0 +1,488 @@
+/* ==========================================================================
+   FICHA CYBERPUNK RED  —  style.css
+   --------------------------------------------------------------------------
+   Este arquivo cuida de TODO o visual. O index.html só tem estrutura e lógica.
+
+   COMO ESTE ARQUIVO ESTÁ ORGANIZADO (use Ctrl+F no número da seção):
+     1.  Tokens ........ cores, fontes e tamanhos. Quer mudar o visual? Comece aqui.
+     2.  Base .......... reset, fundo (background), scanlines, rolagem
+     3.  Cabeçalho e abas
+     4.  Painéis (section) e títulos
+     5.  Formulários ... inputs, selects, botões
+     6.  Layout ........ grids usados nas abas
+     7.  Barras de vida  (PV e Humanidade)  <- componente .vbar
+     8.  Atributos, caixas e estado
+     9.  Perícias
+     10. Tabelas (armas, armadura, inventário...)
+     11. Cyberware ..... boneco, linhas e cartões
+     12. Responsivo (celular / tablet)
+     13. Impressão
+   ========================================================================== */
+
+
+/* ==========================================================================
+   1. TOKENS (variáveis CSS)
+   Mude uma cor aqui e ela muda no site inteiro.
+   ========================================================================== */
+:root {
+  /* --- Paleta principal (a identidade visual) --- */
+  --void:    #000000;   /* preto puro: fundos e sombras                     */
+  --crimson: #c5003c;   /* vermelho principal: botões, bordas, destaque     */
+  --blood:   #880425;   /* vinho escuro: cabeçalhos de painel, fundos       */
+  --volt:    #f3e600;   /* amarelo elétrico: números, foco, "energia"       */
+
+  /* --- Tons derivados (precisam existir por causa de leitura/contraste) --- */
+  --rose:  #ff4d7e;     /* crimson mais claro: use em TEXTO pequeno; o crimson
+                           puro sobre preto fica difícil de ler               */
+  --warn:  #ff9a1f;     /* laranja: estado "ferido" na barra de vida         */
+  --ink:   #f4ecef;     /* cor do texto normal                               */
+  --mute:  #a8909a;     /* texto secundário (legendas, notas)                */
+  --line:  rgba(197, 0, 60, .42);   /* linhas e bordas finas                 */
+  --panel: rgba(9, 2, 5, .74);      /* fundo dos painéis (semi-transparente) */
+  --field: rgba(0, 0, 0, .5);       /* fundo dos campos de texto             */
+
+  /* --- Apelidos: o JavaScript do index.html usa estes nomes antigos. Não apague. --- */
+  --acc:  var(--crimson);
+  --acc2: var(--volt);
+  --hdr:  #050103;
+
+  /* --- Fontes (carregadas do Google Fonts no <head> do index.html) --- */
+  --f-ui:  "Chakra Petch", "Segoe UI", system-ui, sans-serif;   /* interface */
+  --f-num: "Share Tech Mono", "Courier New", monospace;         /* números   */
+
+  /* --- Fundo: quão escuro é o background. 0 = imagem pura, 1 = preto total.
+         Se achar a imagem forte demais, aumente (ex.: .7). --- */
+  --bg-dim: .5;
+
+  /* --- Tamanho do "corte" diagonal dos cantos dos painéis --- */
+  --cut: 14px;
+
+  color-scheme: dark;
+
+  /* Respeita o "notch" / barra de status de celulares. Não remova. */
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+
+/* ==========================================================================
+   2. BASE
+   ========================================================================== */
+*  { box-sizing: border-box; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); scrollbar-color: var(--crimson) #000; }
+
+body {
+  margin: 0;
+  background: var(--void);
+  color: var(--ink);
+  font: 15px/1.45 var(--f-ui);
+  min-height: 100vh;
+}
+
+::selection { background: var(--crimson); color: #fff; }
+
+/* Faixa preta atrás da barra de status do celular (ficha continua legível). */
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; z-index: 20;
+  height: env(safe-area-inset-top, 0px); background: var(--hdr);
+}
+
+/* Scanlines: linhas horizontais bem sutis por cima de tudo, efeito de monitor
+   CRT. Para desligar, apague este bloco inteiro. */
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: 50; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.20) 0 1px, transparent 1px 3px);
+  opacity: .35;
+}
+
+/* BACKGROUND: a <div class="bg"> do index.html. Camadas, de cima para baixo:
+     1) vinheta (escurece as bordas)
+     2) véu preto (controlado por --bg-dim, lá em cima)
+     3) a imagem  assets/bg.jpg
+   Para trocar a imagem, substitua o arquivo assets/bg.jpg. */
+.bg {
+  position: fixed; inset: 0; z-index: -2;
+  background:
+    radial-gradient(ellipse at 50% 30%, transparent 0, rgba(0,0,0,.55) 100%),
+    linear-gradient(rgba(0,0,0,var(--bg-dim)), rgba(0,0,0,calc(var(--bg-dim) + .15))),
+    url("assets/bg.jpg") center / cover no-repeat;
+}
+
+
+/* ==========================================================================
+   3. CABEÇALHO E ABAS
+   ========================================================================== */
+header {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+  background: linear-gradient(180deg, #000, rgba(0,0,0,.55));
+  border-bottom: 1px solid var(--line);
+}
+
+h1 {
+  margin: 0; font: 700 22px/1 var(--f-ui);
+  letter-spacing: 4px; text-transform: uppercase;
+  text-shadow: 0 0 18px rgba(197, 0, 60, .7);
+}
+h1 b { color: var(--volt); text-shadow: 0 0 14px rgba(243, 230, 0, .55); }
+
+/* Barra de abas (Ficha, Perícias, Lifepath...). Fica grudada no topo ao rolar.
+   O JS adiciona a classe "on" no botão da aba ativa. */
+nav {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10;
+  display: flex; gap: 6px; overflow-x: auto; padding: 8px 14px;
+  background: rgba(0, 0, 0, .82);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+nav button {
+  background: rgba(136, 4, 37, .25); color: #cdb8c1;
+  padding: 9px 18px; white-space: nowrap; font-size: 13px; letter-spacing: 2px;
+  box-shadow: inset 0 -2px 0 var(--blood);
+}
+nav button:hover { color: #fff; background: rgba(197, 0, 60, .4); }
+nav button.on    { background: var(--crimson); color: #fff; box-shadow: inset 0 -3px 0 var(--volt); }
+
+main { max-width: 1100px; margin: 0 auto; padding: 16px 14px 40px; }
+
+/* Cada aba é um .tab. Só a que tem a classe "on" aparece. */
+.tab    { display: none; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.tab.on { display: grid; }
+
+
+/* ==========================================================================
+   4. PAINÉIS (<section>) E TÍTULOS
+   Todo bloco da ficha é uma <section>. Tem canto superior direito cortado
+   (clip-path) e uma linha diagonal desenhada pelo ::after para marcar o corte.
+   ========================================================================== */
+section {
+  position: relative;
+  background: var(--panel);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);   /* desfoca o fundo atrás do painel */
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--crimson);
+  padding: 14px; min-width: 0;
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%);
+}
+section::after {
+  content: ""; position: absolute; top: 0; right: 0; width: var(--cut); height: var(--cut); pointer-events: none;
+  background: linear-gradient(to top right, transparent calc(50% - 1px), var(--crimson) calc(50% - 1px), var(--crimson) 50%, transparent 50%);
+}
+
+.wide { grid-column: 1 / -1; }   /* painel que ocupa a linha toda */
+
+/* .hd = faixa de título do painel (título à esquerda, botões à direita) */
+.hd {
+  margin: -14px -14px 12px; padding: 6px 14px; min-height: 38px;
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  background: linear-gradient(90deg, var(--blood), rgba(0, 0, 0, .35) 85%);
+  border-bottom: 1px solid var(--line);
+}
+
+h2 { margin: 0; font: 700 14px var(--f-ui); letter-spacing: 2px; text-transform: uppercase; color: #fff; }
+/* losango amarelo antes de cada título de painel */
+h2::before {
+  content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 10px;
+  background: var(--volt); box-shadow: 0 0 8px var(--volt); transform: rotate(45deg); vertical-align: middle;
+}
+
+/* h3 = título de categoria dentro de um painel (ex.: categorias de perícia) */
+h3 {
+  margin: 0 0 6px; padding-bottom: 3px; border-bottom: 1px solid var(--line);
+  font: 600 12px var(--f-ui); letter-spacing: 1.5px; color: var(--volt); text-transform: uppercase;
+}
+
+.note { font-size: 12px; color: var(--mute); margin: 8px 0 0; }
+
+
+/* ==========================================================================
+   5. FORMULÁRIOS
+   ========================================================================== */
+label { display: block; font-size: 12px; letter-spacing: .3px; color: var(--mute); margin-bottom: 3px; }
+
+input, select, textarea {
+  width: 100%; min-width: 0; padding: 7px 9px;
+  background: var(--field); color: var(--ink);
+  border: 1px solid rgba(197, 0, 60, .35); border-bottom: 2px solid var(--crimson); border-radius: 0;
+  font: inherit; transition: border-color .15s, box-shadow .15s;
+}
+/* Foco visível (acessibilidade): borda amarela + brilho. Não remova. */
+input:focus, select:focus, textarea:focus {
+  outline: none; border-color: var(--volt);
+  box-shadow: 0 0 0 1px var(--volt), 0 0 14px rgba(243, 230, 0, .25);
+}
+input::placeholder, textarea::placeholder { color: rgba(168, 144, 154, .6); }
+input[type=number] { text-align: center; padding: 7px 2px; font-family: var(--f-num); }
+textarea { min-height: 80px; resize: vertical; }
+select option, select optgroup { background: #0a0206; color: var(--ink); }
+
+/* Botões. Os cantos cortados vêm do clip-path. O foco usa outline PARA DENTRO
+   (offset negativo) porque o clip-path cortaria um outline normal. */
+button {
+  background: var(--crimson); color: #fff; border: 0; padding: 8px 14px;
+  font: 600 12px var(--f-ui); letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  transition: filter .15s, background .15s;
+}
+button:hover { filter: brightness(1.2); }
+button:active { filter: brightness(.9); }
+button:focus-visible { outline: 2px solid var(--volt); outline-offset: -3px; }
+
+/* .alt = botão secundário (contorno em vez de preenchido) */
+button.alt { background: rgba(197, 0, 60, .12); color: var(--ink); box-shadow: inset 0 0 0 1px var(--crimson); }
+button.alt:hover { background: rgba(197, 0, 60, .35); filter: none; }
+
+.bar, .pm { display: flex; gap: 6px; flex-wrap: wrap; }
+/* .pm = par de botões − e + que adiciona/remove linhas de listas */
+.pm button { width: 34px; padding: 4px 0; font-size: 16px; line-height: 1; }
+
+#io { max-width: 1100px; margin: 14px auto 0; padding: 0 14px; }   /* painel de backup JSON */
+
+
+/* ==========================================================================
+   6. LAYOUT (grids reutilizáveis)
+   ========================================================================== */
+.g  { display: grid; gap: 10px; }
+.g2 { grid-template-columns: 1fr 1fr; }
+.g4 { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.lp { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }   /* campos do Lifepath */
+.tw { overflow-x: auto; }   /* "table wrapper": a tabela rola de lado no celular */
+
+
+/* ==========================================================================
+   7. BARRAS DE VIDA  (.vbar)
+   Um único componente usado para PV (Ficha) e Humanidade (Cyberware).
+
+   Estrutura no HTML:
+     <div class="vbar" data-s="ok" style="--n:35">
+        <i class="vbar-fill"></i>   <- parte preenchida (largura via JS, em %)
+        <i class="vbar-seg"></i>    <- divisões em "gomos", uma por ponto
+        <i class="vbar-mark"></i>   <- risco opcional (limite de Ferida Grave)
+     </div>
+
+   --n  = quantidade de gomos (o JS coloca PV máximo, ou EMP no caso da Humanidade)
+   data-s = estado, definido pelo JS:
+            ok (amarelo) | hurt (laranja) | grave (vermelho) | dead (vermelho piscando)
+   ========================================================================== */
+.vbar {
+  position: relative; height: 28px; overflow: hidden;
+  background: rgba(0, 0, 0, .7); border: 1px solid var(--line);
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+}
+.vbar-fill {
+  position: absolute; inset: 0 auto 0 0; width: 100%;
+  background: linear-gradient(90deg, #9c8f00, var(--volt));
+  box-shadow: 0 0 18px rgba(243, 230, 0, .45);
+  transition: width .45s cubic-bezier(.2, .8, .2, 1), background .3s;
+}
+/* brilho no topo da barra */
+.vbar-fill::after { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: rgba(255, 255, 255, .35); }
+/* "ponta" branca na extremidade do preenchimento */
+.vbar-fill::before { content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 3px; background: #fff; opacity: .85; z-index: 1; }
+
+/* Gomos: faixas pretas finas repetidas por cima do preenchimento.
+   O tamanho de cada gomo é 100% ÷ --n. */
+.vbar-seg {
+  position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(90deg,
+    transparent 0, transparent calc(100% / var(--n, 10) - 2px),
+    #000 calc(100% / var(--n, 10) - 2px), #000 calc(100% / var(--n, 10)));
+}
+
+/* Risco do limite de Ferida Grave (a posição "left" vem do JS) */
+.vbar-mark { position: absolute; top: 0; bottom: 0; width: 2px; z-index: 2; background: var(--rose); box-shadow: 0 0 6px var(--rose); }
+
+/* Cores por estado */
+.vbar[data-s="hurt"]  .vbar-fill { background: linear-gradient(90deg, #a85c00, var(--warn)); box-shadow: 0 0 18px rgba(255, 154, 31, .45); }
+.vbar[data-s="grave"] .vbar-fill,
+.vbar[data-s="dead"]  .vbar-fill { background: linear-gradient(90deg, var(--blood), var(--crimson)); box-shadow: 0 0 18px rgba(197, 0, 60, .7); }
+.vbar[data-s="dead"] { animation: alarm 1s steps(2, jump-none) infinite; }
+@keyframes alarm { 0% { border-color: var(--line); } 100% { border-color: var(--rose); box-shadow: 0 0 0 1px var(--rose); } }
+
+/* Bloco "Vitalidade" da aba Ficha: número grande + barra + escala + botões */
+.vital-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.vital-num { font: 400 56px/1 var(--f-num); color: var(--volt); text-shadow: 0 0 18px rgba(243, 230, 0, .35); }
+.vital-num small { font: 500 15px var(--f-ui); color: var(--mute); margin-left: 8px; text-shadow: none; }
+.vbar-scale { position: relative; height: 16px; margin-top: 5px; font: 11px var(--f-num); color: var(--mute); }
+.vbar-scale span { position: absolute; top: 0; white-space: nowrap; }
+.vbar-scale .s0  { left: 0; }
+.vbar-scale .smx { right: 0; }
+.vbar-scale .stag { color: var(--rose); transform: translateX(-50%); }   /* rótulo "FERIDA GRAVE" (posição via JS) */
+.vital-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+.vital-btns span { font-size: 12px; color: var(--mute); margin-right: 4px; }
+.vital-btns button { min-width: 52px; }
+
+/* Barra de Humanidade (Cyberware): mesma barra, só mais baixa */
+.vbar.hum { height: 20px; margin-top: 12px; }
+#hState { margin: 8px 0 0; font: 400 13px var(--f-num); letter-spacing: 1px; }
+
+
+/* ==========================================================================
+   8. ATRIBUTOS, CAIXAS E ESTADO
+   ========================================================================== */
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+.stat {
+  padding: 8px; text-align: center;
+  background: rgba(0, 0, 0, .4); border: 1px solid var(--line); border-bottom: 2px solid var(--crimson);
+}
+.stat input { font: 400 26px var(--f-num); color: var(--volt); border: 0; background: transparent; padding: 2px; }
+.stat span  { font-size: 11px; color: var(--mute); display: block; }
+.stat b     { font: 700 12px var(--f-ui); letter-spacing: 1.5px; color: var(--rose); }
+
+.der { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: 12px; }
+.box { padding: 8px; text-align: center; background: rgba(0, 0, 0, .4); border: 1px solid var(--line); }
+.box em { display: block; font: 400 26px var(--f-num); font-style: normal; color: var(--ink); }
+.box small { display: block; color: var(--mute); font-size: 11px; }
+.box input { font: 400 26px var(--f-num); border: 0; background: transparent; padding: 2px; }
+
+/* .state = etiqueta de estado. Cores: ok amarelo / hurt laranja / dead vermelho */
+.state {
+  display: inline-block; padding: 3px 14px; font: 400 13px var(--f-num); letter-spacing: 1px;
+  border: 1px solid currentColor;
+  clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 7px 100%, 0 calc(100% - 7px));
+}
+.ok   { color: var(--volt); }
+.hurt { color: var(--warn); }
+.dead { color: var(--rose); }
+
+
+/* ==========================================================================
+   9. PERÍCIAS
+   Cada linha .sk tem 5 colunas: nome | nível | mod | atributo | base (resultado)
+   ========================================================================== */
+.skills { columns: 300px; column-gap: 20px; }
+.cat    { break-inside: avoid; margin-bottom: 14px; }   /* evita quebrar uma categoria no meio */
+.sk { display: grid; grid-template-columns: 1fr 42px 42px 42px 38px; gap: 4px; align-items: center; margin-bottom: 3px; }
+.sk.sh { font-size: 10px; color: var(--mute); text-align: center; }   /* linha de cabeçalho: NÍV MOD ATR BASE */
+.sk.sh i { font-style: normal; }
+.nm { display: flex; gap: 4px; align-items: center; font-size: 13px; min-width: 0; }
+.nm input { padding: 3px 6px; }
+.sk input, .sk select { padding: 3px 0; font-size: 13px; }
+.sk b { font: 400 11px var(--f-num); color: var(--mute); text-align: center; }
+.sk output { font: 400 16px var(--f-num); text-align: center; color: var(--volt); }
+.gh { font-weight: 700; font-size: 13px; margin: 8px 0 2px; color: var(--rose); }   /* subtítulo de grupo (Idioma, Ciência...) */
+
+
+/* ==========================================================================
+   10. TABELAS (armas, inventário, cyberdeck, implantes)
+   ========================================================================== */
+table { width: 100%; border-collapse: collapse; }
+td { padding: 2px; }
+th { font-size: 11px; color: var(--mute); text-align: left; font-weight: 600; padding: 2px; letter-spacing: .5px; }
+td.q { width: 1%; }
+td.q input { width: 62px; }
+
+/* Faixa "Ferimentos e Vícios" + "Armadura" lado a lado */
+.row2 { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(260px, 1fr) minmax(0, 2fr); gap: 14px; align-items: stretch; }
+.arm { min-width: 460px; table-layout: fixed; }
+.arm th { padding: 2px 4px 6px; font-size: 11px; letter-spacing: .5px; text-transform: uppercase; }
+.arm td { padding: 4px; }
+.arm td:first-child { width: 84px; font-weight: 700; font-size: 14px; }
+.arm td.q { width: 96px; }
+.arm td.q input { width: 100%; font: 400 15px var(--f-num); }
+.arm input { padding: 9px 10px; }
+
+
+/* ==========================================================================
+   11. CYBERWARE (boneco + cartões + linhas de conexão)
+   .stage é a área escura com 3 colunas: [cartões esquerda] [boneco] [cartões direita].
+   As linhas que ligam cartão -> ponto do corpo são desenhadas pelo JS
+   dentro do <svg id="cyLines"> (função drawLines no index.html).
+   ========================================================================== */
+.stage {
+  grid-column: 1 / -1; position: relative; overflow: hidden;
+  display: grid; grid-template-columns: minmax(0, 1fr) 400px minmax(0, 1fr); gap: 26px; align-items: stretch;
+  padding: 18px;
+  border: 1px solid var(--line); border-left: 3px solid var(--crimson);
+  background: radial-gradient(ellipse at 50% 38%, rgba(136, 4, 37, .5) 0, rgba(0, 0, 0, .82) 58%, rgba(0, 0, 0, .92) 100%);
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%);
+}
+/* scanlines amarelas só dentro do palco */
+.stage::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(243, 230, 0, .03) 0 1px, transparent 1px 4px);
+}
+.stage .tag { position: absolute; left: 14px; top: 8px; font: 400 11px var(--f-num); letter-spacing: 2px; color: var(--volt); opacity: .7; }
+
+#cyLines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+#cyLines .ln { fill: none; stroke: var(--volt); stroke-opacity: .28; stroke-width: 1.2; stroke-dasharray: 4 3; }   /* linha de região vazia: tracejada */
+#cyLines .ln.on { stroke-opacity: .95; stroke-dasharray: none; }                                                 /* região com implante: sólida   */
+#cyLines circle { fill: var(--volt); fill-opacity: .35; }
+#cyLines .on + circle { fill-opacity: 1; }
+
+.cycol { display: flex; flex-direction: column; justify-content: space-between; gap: 12px; position: relative; z-index: 2; }
+
+.fig { position: relative; align-self: center; width: 100%; aspect-ratio: 462 / 720; }
+.fig img { width: 100%; height: 100%; display: block; mix-blend-mode: screen; user-select: none; -webkit-user-drag: none; }
+
+/* .dot = bolinha numerada em cima do corpo. Acesa (.on) quando a região tem implante. */
+.dot {
+  position: absolute; transform: translate(-50%, -50%); z-index: 3; opacity: .75;
+  width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+  background: rgba(0, 0, 0, .75); border: 1.5px solid var(--volt); color: var(--volt);
+  font: 400 11px var(--f-num); font-style: normal;
+}
+.dot.on { background: var(--volt); color: #000; opacity: 1; box-shadow: 0 0 12px var(--volt); animation: pulse 2.2s infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 3px var(--volt); } }
+
+/* Cartões de cada região (.cyc) — painéis menores dentro do palco */
+.cyc { padding: 10px; --cut: 10px; }
+.cyc .hd { margin: -10px -10px 8px; }
+.cyc.on { border-color: rgba(243, 230, 0, .45); border-left-color: var(--volt); }
+.cyc h2 { letter-spacing: 1px; white-space: nowrap; }
+.cyc h2::before { display: none; }   /* nos cartões o número já faz papel de marcador */
+.hr { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.sub { font: 400 12px var(--f-num); color: var(--warn); }   /* "−5": perda de humanidade da região */
+h2 .n {
+  display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 8px;
+  border-radius: 50%; background: var(--volt); color: #000; font: 700 11px var(--f-num); letter-spacing: 0;
+}
+
+/* Regiões sem desenho no boneco (Interno, Externo, Fashionware, Borgware) */
+.cyb { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+.cyb section, .cyc { min-width: 0; }
+
+
+/* ==========================================================================
+   12. RESPONSIVO
+   ========================================================================== */
+@media (max-width: 1000px) {
+  /* Tablet: o boneco vai para o topo e os cartões ficam em 2 colunas. */
+  .stage { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .fig   { order: -1; grid-column: 1 / -1; max-width: 320px; margin: 0 auto; }
+  #cyLines { display: none; }     /* sem linhas de conexão em telas estreitas */
+  .cycol { display: contents; }
+}
+@media (max-width: 800px) { .row2 { grid-template-columns: 1fr; } }
+@media (max-width: 700px) {
+  .lp { grid-template-columns: 1fr; }
+  .lp > * { grid-column: auto !important; }   /* cancela os "span 2" inline dos campos */
+}
+@media (max-width: 560px) {
+  .stage { grid-template-columns: 1fr; }
+  .vital-num { font-size: 44px; }
+}
+
+/* Quem pede menos movimento no sistema não vê animações nem transições. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+
+/* ==========================================================================
+   13. IMPRESSÃO
+   Ao imprimir: fundo branco, texto preto, sem efeitos. Todas as abas saem
+   em sequência, sem a barra de abas.
+   ========================================================================== */
+@media print {
+  .bg, body::before, body::after, nav, #io, header .bar, .pm, .vital-btns { display: none !important; }
+  body { background: #fff; color: #000; }
+  .tab { display: grid; }
+  section, .stage, .vbar, .box, .stat { background: #fff !important; color: #000; border-color: #999; clip-path: none; -webkit-backdrop-filter: none; backdrop-filter: none; break-inside: avoid; }
+  section::after { display: none; }
+  .hd { background: #222 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  input, select, textarea { color: #000; background: transparent; border-color: #999; }
+  .stat input, .vital-num, .sk output, h3, h1 b, .box em { color: #000; text-shadow: none; }
+  .vbar-fill { background: #555 !important; box-shadow: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
