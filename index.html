@@ -272,7 +272,7 @@ P.lifepath = SEC("Identidade", `
 
 // ---------- ABA: CYBERWARE ----------
 // Imagem do corpo (arquivo corpo.jpg, na mesma pasta)
-const BODY_IMG = "corpo.jpg";
+const BODY_IMG = "assets/corpo.jpg";   // se não achar, tenta corpo.jpg na pasta principal (veja onerror abaixo)
 
 // BP = pontos do corpo onde as regiões se ligam por linhas.
 //   formato: [índice em CG, lado do cartão ("L"/"R"), posição x%, posição y% na imagem]
@@ -296,7 +296,7 @@ P.cyber = SEC("Humanidade", `
   <p class="note">EMP efetiva = Humanidade atual ÷ 10 (arredondada para baixo). Use + e − para criar mais linhas em cada região. Pontos acesos no corpo = região com implantes.</p>`, "", "wide")
 
 // O "palco": cartões à esquerda | corpo com bolinhas | cartões à direita
-+ `<div class="stage" id="cyStage"><span class="tag">// ANATOMIA CIBERNÉTICA</span><svg id="cyLines" xmlns="http://www.w3.org/2000/svg"></svg>${cyCol("L")}<div class="fig"><img src="${BODY_IMG}" alt="Corpo humano translúcido" draggable="false">${BP.map((p, n) => `<i class="dot" data-k="cy${p[0]}" style="left:${p[2]}%;top:${p[3]}%" title="${CG[p[0]]}">${n + 1}</i>`).join("")}</div>${cyCol("R")}</div>`
++ `<div class="stage" id="cyStage"><span class="tag">// ANATOMIA CIBERNÉTICA</span><svg id="cyLines" xmlns="http://www.w3.org/2000/svg"></svg>${cyCol("L")}<div class="fig"><img src="${BODY_IMG}" onerror="this.onerror=null;this.src='corpo.jpg'" alt="Corpo humano translúcido" draggable="false">${BP.map((p, n) => `<i class="dot" data-k="cy${p[0]}" style="left:${p[2]}%;top:${p[3]}%" title="${CG[p[0]]}">${n + 1}</i>`).join("")}</div>${cyCol("R")}</div>`
 
 // Regiões sem lugar no desenho do corpo (Interno, Externo, Fashionware, Borgware)
 + `<div class="cyb">${[6, 9, 10, 11].map(i => SEC(CG[i], lst("cy" + i), `<span class="hr"><span class="sub" id="sub_cy${i}"></span>${PM("cy" + i)}</span>`)).join("")}</div>`;
