@@ -107,7 +107,8 @@ body::after {
   background:
     radial-gradient(ellipse at 50% 30%, transparent 0, rgba(0,0,0,.55) 100%),
     linear-gradient(rgba(0,0,0,var(--bg-dim)), rgba(0,0,0,calc(var(--bg-dim) + .15))),
-    url("bg.jpg") center / cover no-repeat;
+    url("assets/bg.jpg") center / cover no-repeat,
+    url("bg.jpg") center / cover no-repeat;   /* tenta as duas pastas: com ou sem assets/ */
 }
 
 
