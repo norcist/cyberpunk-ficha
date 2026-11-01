@@ -6,9 +6,9 @@
   ARQUIVOS DO PROJETO (precisam ficar juntos, nesta estrutura):
       index.html        <- este arquivo: estrutura (HTML) + lógica (JavaScript)
       style.css         <- TODO o visual (cores, fontes, layout)
-      assets/bg.jpg     <- imagem de fundo do site
-      assets/corpo.jpg  <- imagem do corpo usada na aba Cyberware
-      i18n.js           <- idiomas (PT/EN/RU/JA), menu de idiomas e relógio do rodapé
+      bg.jpg            <- imagem de fundo do site
+      corpo.jpg         <- imagem do corpo usada na aba Cyberware
+      script.js         <- idiomas (PT/EN/RU/JA), menu de idiomas e relógio do rodapé
 
   COMO FUNCIONA (resumo para quem vai mexer):
     * A página quase não tem HTML escrito à mão. O JavaScript monta as abas
@@ -48,7 +48,7 @@
   <!-- Botões do topo. Os cliques são ligados no final do script. -->
   <div class="bar">
     <button class="alt" id="bIO">Backup</button>
-    <!-- Seletor de idioma. Lógica e lista de idiomas: i18n.js. data-notr = não traduzir este trecho. -->
+    <!-- Seletor de idioma. Lógica e lista de idiomas: script.js. data-notr = não traduzir este trecho. -->
     <div class="lang" data-notr>
       <button class="alt" id="langBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Language"><span>PT</span></button>
       <div id="langMenu" role="menu" hidden></div>
@@ -83,7 +83,7 @@
   <div class="foot-sys" data-notr><span id="clock">--</span><i class="cursor"></i></div>
 </footer>
 
-<script src="i18n.js"></script>
+<script src="script.js"></script>
 <script>
 /* ==========================================================================
    1. ATALHOS E "FÁBRICAS" DE HTML
@@ -271,8 +271,8 @@ P.lifepath = SEC("Identidade", `
 
 
 // ---------- ABA: CYBERWARE ----------
-// Imagem do corpo (arquivo na pasta assets/)
-const BODY_IMG = "assets/corpo.jpg";
+// Imagem do corpo (arquivo corpo.jpg, na mesma pasta)
+const BODY_IMG = "corpo.jpg";
 
 // BP = pontos do corpo onde as regiões se ligam por linhas.
 //   formato: [índice em CG, lado do cartão ("L"/"R"), posição x%, posição y% na imagem]
@@ -535,8 +535,8 @@ addEventListener("resize", drawLines);
 /* ==========================================================================
    11. BOTÕES DO TOPO (Backup e Limpar)
    ========================================================================== */
-// Aviso de segurança: se o i18n.js não carregou (arquivo ausente/na pasta errada), o botão de idioma avisa em vez de ficar mudo.
-$("langBtn").addEventListener("click", () => { if (typeof setLang === "undefined") alert("O arquivo i18n.js não foi carregado. Coloque-o na mesma pasta do index.html e recarregue a página (Ctrl+F5)."); });
+// Aviso de segurança: se o script.js não carregou (arquivo ausente/na pasta errada), o botão de idioma avisa em vez de ficar mudo.
+$("langBtn").addEventListener("click", () => { if (typeof setLang === "undefined") alert("O arquivo script.js não foi carregado. Coloque-o na mesma pasta do index.html e recarregue a página (Ctrl+F5)."); });
 $("bIO").onclick  = () => { $("io").hidden = !$("io").hidden; };                       // mostra/esconde painel de backup
 $("bExp").onclick = () => { $("json").value = JSON.stringify(dump()); $("json").select(); };   // gera o texto do backup
 $("bImp").onclick = () => { try { load(JSON.parse($("json").value)); calc(); save(); } catch (e) { alert(tx("JSON inválido.")); } };   // restaura um backup
