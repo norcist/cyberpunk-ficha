@@ -100,14 +100,14 @@ body::after {
 /* BACKGROUND: a <div class="bg"> do index.html. Camadas, de cima para baixo:
      1) vinheta (escurece as bordas)
      2) véu preto (controlado por --bg-dim, lá em cima)
-     3) a imagem  assets/bg.jpg
-   Para trocar a imagem, substitua o arquivo assets/bg.jpg. */
+     3) a imagem  bg.jpg
+   Para trocar a imagem, substitua o arquivo bg.jpg. */
 .bg {
   position: fixed; inset: 0; z-index: -2;
   background:
     radial-gradient(ellipse at 50% 30%, transparent 0, rgba(0,0,0,.55) 100%),
     linear-gradient(rgba(0,0,0,var(--bg-dim)), rgba(0,0,0,calc(var(--bg-dim) + .15))),
-    url("assets/bg.jpg") center / cover no-repeat;
+    url("bg.jpg") center / cover no-repeat;
 }
 
 
@@ -491,7 +491,7 @@ h2 .n {
 
 /* ==========================================================================
    14. SELETOR DE IDIOMAS E RODAPÉ
-   Lógica em i18n.js. O menu (#langMenu) é preenchido pelo JavaScript.
+   Lógica em script.js. O menu (#langMenu) é preenchido pelo JavaScript.
    ========================================================================== */
 .lang { position: relative; }
 #langBtn::before { content: "◈"; margin-right: 8px; color: var(--volt); }   /* ícone do botão */
