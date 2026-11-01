@@ -17,6 +17,7 @@
      11. Cyberware ..... boneco, linhas e cartões
      12. Responsivo (celular / tablet)
      13. Impressão
+     14. Seletor de idiomas e rodapé
    ========================================================================== */
 
 
@@ -47,8 +48,8 @@
   --hdr:  #050103;
 
   /* --- Fontes (carregadas do Google Fonts no <head> do index.html) --- */
-  --f-ui:  "Chakra Petch", "Segoe UI", system-ui, sans-serif;   /* interface */
-  --f-num: "Share Tech Mono", "Courier New", monospace;         /* números   */
+  --f-ui:  "Chakra Petch", "Exo 2", "Noto Sans JP", "Segoe UI", system-ui, sans-serif;   /* interface */
+  --f-num: "Share Tech Mono", "Exo 2", "Noto Sans JP", "Courier New", monospace;         /* números   */
 
   /* --- Fundo: quão escuro é o background. 0 = imagem pura, 1 = preto total.
          Se achar a imagem forte demais, aumente (ex.: .7). --- */
@@ -476,7 +477,7 @@ h2 .n {
    em sequência, sem a barra de abas.
    ========================================================================== */
 @media print {
-  .bg, body::before, body::after, nav, #io, header .bar, .pm, .vital-btns { display: none !important; }
+  .bg, body::before, body::after, nav, #io, header .bar, .pm, .vital-btns, .foot { display: none !important; }
   body { background: #fff; color: #000; }
   .tab { display: grid; }
   section, .stage, .vbar, .box, .stat { background: #fff !important; color: #000; border-color: #999; clip-path: none; -webkit-backdrop-filter: none; backdrop-filter: none; break-inside: avoid; }
@@ -486,3 +487,53 @@ h2 .n {
   .stat input, .vital-num, .sk output, h3, h1 b, .box em { color: #000; text-shadow: none; }
   .vbar-fill { background: #555 !important; box-shadow: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+
+/* ==========================================================================
+   14. SELETOR DE IDIOMAS E RODAPÉ
+   Lógica em i18n.js. O menu (#langMenu) é preenchido pelo JavaScript.
+   ========================================================================== */
+.lang { position: relative; }
+#langBtn::before { content: "◈"; margin-right: 8px; color: var(--volt); }   /* ícone do botão */
+#langMenu {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 160px;
+  display: flex; flex-direction: column; gap: 2px; padding: 6px;
+  background: rgba(0, 0, 0, .92); border: 1px solid var(--line); border-left: 3px solid var(--volt);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+#langMenu[hidden] { display: none; }
+#langMenu button { text-align: left; text-transform: none; letter-spacing: .5px; font-size: 14px; background: transparent; box-shadow: none; clip-path: none; }
+#langMenu button:hover { background: rgba(197, 0, 60, .35); }
+#langMenu button[aria-checked="true"] { color: var(--volt); }
+#langMenu button[aria-checked="true"]::before { content: "▸ "; }
+
+/* Rodapé: 3 blocos (código | crédito | relógio) numa faixa com canto cortado */
+.foot {
+  max-width: 1100px; margin: 10px auto 0; padding: 12px 18px calc(14px + env(safe-area-inset-bottom, 0px));
+  display: grid; grid-template-columns: auto 1fr auto; gap: 18px; align-items: center;
+  font: 400 12px/1.4 var(--f-num); color: var(--mute);
+  background: linear-gradient(90deg, rgba(136, 4, 37, .35), rgba(0, 0, 0, .75) 60%);
+  border-top: 1px solid var(--line); border-left: 3px solid var(--crimson);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%);
+}
+.foot p { margin: 0; color: var(--ink); letter-spacing: .5px; }
+.foot small { display: block; margin-top: 2px; font-size: 11px; opacity: .8; }
+.foot-tag { font-style: normal; padding: 1px 8px; margin-right: 8px; color: #000; background: var(--volt); font-weight: 700; letter-spacing: 1px; }
+.foot-id { display: flex; align-items: center; gap: 10px; color: var(--rose); letter-spacing: 1px; }
+.foot-code { width: 46px; height: 18px; background: repeating-linear-gradient(90deg, var(--crimson) 0 2px, transparent 2px 4px, var(--crimson) 4px 5px, transparent 5px 8px); }   /* "código de barras" */
+.foot-sys { display: flex; align-items: center; gap: 6px; color: var(--volt); white-space: pre; }
+.cursor { width: 8px; height: 14px; background: var(--volt); animation: blink 1s steps(2, jump-none) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Nome "NORCIST" com falha de imagem (glitch) rápida a cada ~7s */
+.glitch { position: relative; color: var(--volt); letter-spacing: 2px; }
+.glitch::before, .glitch::after { content: attr(data-g); position: absolute; left: 0; top: 0; opacity: 0; }
+.glitch::before { color: var(--crimson); animation: glitch 7s steps(1) infinite; }
+.glitch::after  { color: #fff; animation: glitch 7s steps(1) infinite reverse; }
+@keyframes glitch {
+  0%, 94%, 100% { opacity: 0; transform: none; }
+  95% { opacity: .9; transform: translate(-2px, 1px); }
+  97% { opacity: .9; transform: translate(2px, -1px); }
+  99% { opacity: .9; transform: translate(-1px, 0); }
+}
+@media (max-width: 700px) { .foot { grid-template-columns: 1fr; gap: 8px; } }
