@@ -8,6 +8,7 @@
       style.css         <- TODO o visual (cores, fontes, layout)
       assets/bg.jpg     <- imagem de fundo do site
       assets/corpo.jpg  <- imagem do corpo usada na aba Cyberware
+      i18n.js           <- idiomas (PT/EN/RU/JA), menu de idiomas e relógio do rodapé
 
   COMO FUNCIONA (resumo para quem vai mexer):
     * A página quase não tem HTML escrito à mão. O JavaScript monta as abas
@@ -32,7 +33,7 @@
      Se estiver offline, o navegador usa as fontes reserva definidas no style.css. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@400;600;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
 
 <!-- Todo o visual vive aqui -->
 <link rel="stylesheet" href="style.css">
@@ -47,7 +48,11 @@
   <!-- Botões do topo. Os cliques são ligados no final do script. -->
   <div class="bar">
     <button class="alt" id="bIO">Backup</button>
-    <button class="alt" onclick="print()">Imprimir</button>
+    <!-- Seletor de idioma. Lógica e lista de idiomas: i18n.js. data-notr = não traduzir este trecho. -->
+    <div class="lang" data-notr>
+      <button class="alt" id="langBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Language"><span>PT</span></button>
+      <div id="langMenu" role="menu" hidden></div>
+    </div>
     <button id="bReset">Limpar</button>
   </div>
 </header>
@@ -68,6 +73,17 @@
 <!-- As abas são injetadas aqui -->
 <main id="main"></main>
 
+<!-- RODAPÉ: crédito + aviso de projeto não oficial. Visual: style.css, seção 14. -->
+<footer class="foot">
+  <div class="foot-id" aria-hidden="true" data-notr><i class="foot-code"></i><span>PROTOCOL NRC—2077</span></div>
+  <div class="foot-txt">
+    <p><em class="foot-tag">NÃO OFICIAL</em> © 2026 <b class="glitch" data-notr data-g="NORCIST">NORCIST</b> — Todos os direitos reservados</p>
+    <small>Projeto feito por fãs, não afiliado. Cyberpunk RED é marca da R. Talsorian Games.</small>
+  </div>
+  <div class="foot-sys" data-notr><span id="clock">--</span><i class="cursor"></i></div>
+</footer>
+
+<script src="i18n.js"></script>
 <script>
 /* ==========================================================================
    1. ATALHOS E "FÁBRICAS" DE HTML
@@ -478,7 +494,7 @@ document.addEventListener("click", ev => {
   if (d < 0 && CNT[k] > 0) {
     // antes de apagar a última linha, confirma se ela tiver algo escrito
     const last = CNT[k] - 1;
-    if (L.some(c => $(`${k}_${last}_${c[0]}`).value !== "") && !confirm("Remover a última linha? Os dados dela serão apagados.")) return;
+    if (L.some(c => $(`${k}_${last}_${c[0]}`).value !== "") && !confirm(tx("Remover a última linha? Os dados dela serão apagados."))) return;
   }
   CNT[k] = Math.max(0, Math.min(40, CNT[k] + d));   // limite de 0 a 40 linhas
   renderList(k); calc(); save();
@@ -521,9 +537,9 @@ addEventListener("resize", drawLines);
    ========================================================================== */
 $("bIO").onclick  = () => { $("io").hidden = !$("io").hidden; };                       // mostra/esconde painel de backup
 $("bExp").onclick = () => { $("json").value = JSON.stringify(dump()); $("json").select(); };   // gera o texto do backup
-$("bImp").onclick = () => { try { load(JSON.parse($("json").value)); calc(); save(); } catch (e) { alert("JSON inválido."); } };   // restaura um backup
+$("bImp").onclick = () => { try { load(JSON.parse($("json").value)); calc(); save(); } catch (e) { alert(tx("JSON inválido.")); } };   // restaura um backup
 $("bReset").onclick = () => {
-  if (confirm("Apagar toda a ficha?")) { try { localStorage.removeItem(KEY); localStorage.removeItem("cpr_ficha_v1"); } catch (e) {} location.reload(); }
+  if (confirm(tx("Apagar toda a ficha?"))) { try { localStorage.removeItem(KEY); localStorage.removeItem("cpr_ficha_v1"); } catch (e) {} location.reload(); }
 };
 </script>
 </body>
