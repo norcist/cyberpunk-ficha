@@ -1,5 +1,5 @@
 /* ==========================================================================
-   i18n.js — IDIOMAS (PT / EN / RU / JA) + relógio do rodapé
+   script.js — IDIOMAS (PT / EN / RU / JA) + relógio do rodapé
    --------------------------------------------------------------------------
    COMO FUNCIONA
    O site é escrito em português. Este arquivo percorre a página e troca cada
