@@ -535,6 +535,8 @@ addEventListener("resize", drawLines);
 /* ==========================================================================
    11. BOTÕES DO TOPO (Backup e Limpar)
    ========================================================================== */
+// Aviso de segurança: se o i18n.js não carregou (arquivo ausente/na pasta errada), o botão de idioma avisa em vez de ficar mudo.
+$("langBtn").addEventListener("click", () => { if (typeof setLang === "undefined") alert("O arquivo i18n.js não foi carregado. Coloque-o na mesma pasta do index.html e recarregue a página (Ctrl+F5)."); });
 $("bIO").onclick  = () => { $("io").hidden = !$("io").hidden; };                       // mostra/esconde painel de backup
 $("bExp").onclick = () => { $("json").value = JSON.stringify(dump()); $("json").select(); };   // gera o texto do backup
 $("bImp").onclick = () => { try { load(JSON.parse($("json").value)); calc(); save(); } catch (e) { alert(tx("JSON inválido.")); } };   // restaura um backup
